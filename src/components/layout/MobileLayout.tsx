@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
 import { BottomNavigation } from './BottomNavigation';
+import { ChatBot } from '../ChatBot';
 
 interface MobileLayoutProps {
   children: ReactNode;
@@ -13,6 +14,7 @@ export const MobileLayout = ({ children, hideNav = false }: MobileLayoutProps) =
         {children}
       </div>
       {!hideNav && <BottomNavigation />}
+      <ChatBot />
     </main>
   );
 };

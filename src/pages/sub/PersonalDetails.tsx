@@ -10,9 +10,8 @@ export const PersonalDetails = () => {
   const [phone, setPhone] = useState(appState.profile.phone);
   const [email, setEmail] = useState(appState.profile.email);
 
-  const handleSave = () => {
-    updateProfile({ name, phone, email });
-    toast.success('Details saved successfully!');
+  const handleSave = async () => {
+    await updateProfile({ name, phone, email });
   };
 
   return (

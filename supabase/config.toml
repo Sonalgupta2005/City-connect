@@ -1,0 +1,10 @@
+project_id = "gsdfzezswwmfkngrytkq"
+
+[functions]
+enabled = true
+
+[functions.calculate-distance]
+verify_jwt = false
+
+[functions.chat-assistant]
+verify_jwt = false

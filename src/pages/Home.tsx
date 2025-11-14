@@ -1,26 +1,27 @@
 import { useState } from 'react';
 import { useAppContext } from '@/contexts/AppContext';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
 
 export const Home = () => {
   const { appState } = useAppContext();
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleLocationClick = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          console.log('Location:', latitude, longitude);
-        },
-        () => {
-          alert('Could not get your location. Please enable location services.');
-        }
-      );
-    } else {
-      alert('Geolocation is not supported by this browser.');
+  const handleQuickRoute = (placeId: 'home' | 'work') => {
+    const place = appState.myPlaces.find(p => p.id === placeId);
+    if (!place) {
+      toast.error(`${placeId === 'home' ? 'Home' : 'Work'} address not set. Please add it in My Places.`);
+      return;
     }
+    
+    // Navigate to Plan page with destination pre-filled
+    navigate('/plan', { 
+      state: { 
+        quickDestination: place.address,
+        destinationType: placeId
+      } 
+    });
   };
 
   return (
@@ -47,10 +48,16 @@ export const Home = () => {
           />
         </div>
         <div className="flex justify-around text-center mt-4">
-          <button className="flex-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors">
+          <button 
+            onClick={() => handleQuickRoute('home')}
+            className="flex-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
+          >
             <i className="fas fa-home mr-2 text-primary"></i>Go To Home
           </button>
-          <button className="flex-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors">
+          <button 
+            onClick={() => handleQuickRoute('work')}
+            className="flex-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 p-2 rounded-lg transition-colors"
+          >
             <i className="fas fa-briefcase mr-2 text-primary"></i>Go To Work
           </button>
         </div>
@@ -142,7 +149,7 @@ export const Home = () => {
               style={{ border: 0 }}
             ></iframe>
             <button
-              onClick={handleLocationClick}
+              onClick={() => toast.info('Current location feature coming soon!')}
               className="absolute bottom-3 right-3 bg-white w-10 h-10 rounded-full shadow-lg flex items-center justify-center text-primary"
             >
               <i className="fas fa-location-arrow"></i>

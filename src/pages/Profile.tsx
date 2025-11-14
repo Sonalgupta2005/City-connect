@@ -1,26 +1,127 @@
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/contexts/AppContext';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
+import { useState, useRef } from 'react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 export const Profile = () => {
   const navigate = useNavigate();
-  const { appState, darkMode, toggleDarkMode } = useAppContext();
+  const { appState, darkMode, toggleDarkMode, logout, userRole, subscriptionExpiresAt, avatarUrl, updateAvatar, user } = useAppContext();
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatExpiryDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const isSubscriptionActive = () => {
+    if (!subscriptionExpiresAt) return false;
+    return new Date(subscriptionExpiresAt) > new Date();
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('File size must be less than 2MB');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+
+      await updateAvatar(publicUrl);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast.error('Failed to upload avatar');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   return (
     <div>
       <header className="p-5 gradient-bg text-white shadow-lg rounded-b-3xl relative">
         <div className="flex flex-col items-center">
           <div className="relative mb-3">
-            <img
-              src="https://placehold.co/100x100/E2E8F0/4A5568?text=A"
-              alt="Profile"
-              className="w-24 h-24 rounded-full object-cover border-4 border-white shadow-lg"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
             />
-            <button className="absolute bottom-0 right-0 bg-white text-primary w-8 h-8 rounded-full flex items-center justify-center border-2 border-primary">
-              <i className="fas fa-camera"></i>
+            <Avatar className="w-24 h-24 border-4 border-white shadow-lg cursor-pointer" onClick={handleAvatarClick}>
+              <AvatarImage src={avatarUrl || undefined} alt={appState.profile.name} />
+              <AvatarFallback className="bg-primary text-white text-2xl">
+                {getInitials(appState.profile.name)}
+              </AvatarFallback>
+            </Avatar>
+            <button 
+              onClick={handleAvatarClick}
+              disabled={isUploading}
+              className="absolute bottom-0 right-0 bg-white text-primary w-8 h-8 rounded-full flex items-center justify-center border-2 border-primary disabled:opacity-50"
+            >
+              {isUploading ? (
+                <i className="fas fa-spinner fa-spin"></i>
+              ) : (
+                <i className="fas fa-camera"></i>
+              )}
             </button>
           </div>
           <h1 className="text-2xl font-bold">{appState.profile.name}</h1>
           <p className="text-sm opacity-90">{appState.profile.phone}</p>
+          {userRole === 'subscribed' && isSubscriptionActive() && (
+            <div className="mt-3 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg text-center">
+              <div className="flex items-center justify-center gap-2 mb-1">
+                <span className="text-primary font-bold">⭐ Smart Commuter Pass</span>
+              </div>
+              <p className="text-xs text-gray-600">
+                Active until {formatExpiryDate(subscriptionExpiresAt)}
+              </p>
+            </div>
+          )}
+          {userRole === 'subscribed' && !isSubscriptionActive() && (
+            <span className="inline-block mt-2 px-3 py-1 text-sm font-semibold bg-red-100 text-red-600 rounded-full">
+              ⏰ Subscription Expired
+            </span>
+          )}
         </div>
       </header>
 
@@ -188,6 +289,15 @@ export const Profile = () => {
             </div>
           </div>
         </div>
+
+        {/* Logout Button */}
+        <button
+          onClick={logout}
+          className="w-full bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg transition-colors"
+        >
+          <i className="fas fa-sign-out-alt mr-2"></i>
+          Logout
+        </button>
       </div>
     </div>
   );

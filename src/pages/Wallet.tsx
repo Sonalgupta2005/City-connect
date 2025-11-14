@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppContext } from '@/contexts/AppContext';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 interface AddMoneyModalProps {
@@ -60,9 +61,48 @@ interface SubscriptionModalProps {
 }
 
 const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) => {
-  const handleBuy = (plan: string) => {
-    toast.success(`${plan} plan purchased successfully!`);
-    onClose();
+  const { user } = useAppContext();
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  const handleBuy = async () => {
+    if (!user) {
+      toast.error('Please login to purchase a subscription');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      // Calculate expiry date (30 days from now)
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 30);
+
+      // Update user role to subscribed
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .update({ role: 'subscribed' })
+        .eq('user_id', user.id);
+
+      if (roleError) throw roleError;
+
+      // Update profile with subscription expiry date
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ subscription_expires_at: expiryDate.toISOString() } as any)
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
+      toast.success('Smart Commuter Pass purchased successfully!');
+      onClose();
+      
+      // Reload the page to refresh the user role and subscription data
+      window.location.reload();
+    } catch (error) {
+      console.error('Error purchasing subscription:', error);
+      toast.error('Failed to purchase subscription. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -71,37 +111,65 @@ const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) => {
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
       <div className="w-full max-w-[420px] bg-white dark:bg-gray-800 rounded-t-2xl p-5 max-h-[80vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold dark:text-white">Choose Your Pass</h2>
+          <h2 className="text-xl font-bold dark:text-white">Upgrade Your Experience</h2>
           <button onClick={onClose} className="text-gray-500 dark:text-gray-400">
             <i className="fas fa-times"></i>
           </button>
         </div>
-        <div className="space-y-4">
-          {[
-            { name: 'Silver', price: 299, benefits: ['5% discount on rides', 'Monthly fitness report'] },
-            { name: 'Gold', price: 599, benefits: ['10% discount on rides', 'Weekly fitness report', 'Priority support'] },
-            { name: 'Platinum', price: 999, benefits: ['15% discount on rides', 'Daily fitness report', '24/7 support', 'Exclusive deals'] }
-          ].map((plan) => (
-            <div key={plan.name} className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="font-bold text-lg dark:text-white">{plan.name} Pass</h3>
-                <p className="text-2xl font-bold text-primary">₹{plan.price}</p>
-              </div>
-              <ul className="space-y-1 mb-3">
-                {plan.benefits.map((benefit, idx) => (
-                  <li key={idx} className="text-sm text-gray-600 dark:text-gray-300">
-                    <i className="fas fa-check text-green-500 mr-2"></i>{benefit}
-                  </li>
-                ))}
-              </ul>
-              <button
-                onClick={() => handleBuy(plan.name)}
-                className="w-full bg-primary text-white py-2 rounded-lg font-semibold"
-              >
-                Buy Now
-              </button>
+        <div className="bg-gradient-to-br from-primary/10 to-purple-500/10 dark:from-primary/20 dark:to-purple-500/20 p-6 rounded-2xl border-2 border-primary/20">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-bold text-2xl dark:text-white">Smart Commuter Pass</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Premium travel experience</p>
             </div>
-          ))}
+            <div className="text-right">
+              <p className="text-3xl font-bold text-primary">₹499</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">per month</p>
+            </div>
+          </div>
+          
+          <div className="space-y-3 mb-5">
+            <div className="flex items-start space-x-3">
+              <i className="fas fa-history text-primary mt-1"></i>
+              <div>
+                <p className="font-semibold text-sm dark:text-white">Complete Travel History</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Track all your trips with detailed analytics</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start space-x-3">
+              <i className="fas fa-chart-line text-primary mt-1"></i>
+              <div>
+                <p className="font-semibold text-sm dark:text-white">Smart Comparison System</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Compare prices across all ride providers in real-time</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start space-x-3">
+              <i className="fas fa-walking text-primary mt-1"></i>
+              <div>
+                <p className="font-semibold text-sm dark:text-white">Move-to-Earn Rewards</p>
+                <p className="text-xs text-gray-600 dark:text-gray-400">Earn up to 20% discount based on your daily steps</p>
+              </div>
+            </div>
+            
+            <div className="bg-white/50 dark:bg-gray-900/50 p-3 rounded-lg mt-4">
+              <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">Step-based Discount Tiers:</p>
+              <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
+                <p><i className="fas fa-check text-green-500 mr-2"></i>5,000 steps = 5% off</p>
+                <p><i className="fas fa-check text-green-500 mr-2"></i>10,000 steps = 10% off</p>
+                <p><i className="fas fa-check text-green-500 mr-2"></i>15,000+ steps = 20% off</p>
+              </div>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleBuy}
+            disabled={isProcessing}
+            className="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-lg font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isProcessing ? 'Processing...' : 'Activate Pass Now'}
+          </button>
         </div>
       </div>
     </div>
@@ -110,9 +178,41 @@ const SubscriptionModal = ({ isOpen, onClose }: SubscriptionModalProps) => {
 
 export const Wallet = () => {
   const navigate = useNavigate();
-  const { appState } = useAppContext();
+  const { appState, userRole, subscriptionExpiresAt, user } = useAppContext();
   const [showAddMoney, setShowAddMoney] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
+  const isSubscriptionActive = () => {
+    if (!subscriptionExpiresAt || userRole !== 'subscribed') return false;
+    return new Date(subscriptionExpiresAt) > new Date();
+  };
+
+  const formatExpiryDate = (dateString: string | null) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!user) return;
+
+    try {
+      const { error } = await supabase
+        .from('user_roles')
+        .update({ role: 'normal' })
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast.success('Subscription cancelled. You are now a normal user.');
+      setShowCancelModal(false);
+      window.location.reload();
+    } catch (error) {
+      console.error('Error cancelling subscription:', error);
+      toast.error('Failed to cancel subscription. Please try again.');
+    }
+  };
 
   return (
     <div>
@@ -158,18 +258,38 @@ export const Wallet = () => {
         {/* Commuter Pass */}
         <div className="bg-gradient-to-r from-blue-500 to-purple-600 p-5 rounded-xl shadow-lg text-white">
           <h3 className="font-bold text-lg mb-2">Commuter Pass</h3>
-          <p className="text-sm opacity-90 mb-4">Get exclusive discounts on all rides</p>
+          <p className="text-sm opacity-90 mb-4">
+            {isSubscriptionActive() 
+              ? 'Access to smart comparison, travel history, and move-to-earn features' 
+              : 'Get exclusive discounts on all rides'}
+          </p>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs opacity-75">Current Plan</p>
-              <p className="font-bold">Silver</p>
+              <p className="font-bold">
+                {isSubscriptionActive() ? 'Smart Commuter Pass' : 'Normal'}
+              </p>
+              {isSubscriptionActive() && (
+                <p className="text-xs opacity-75 mt-1">
+                  Active until {formatExpiryDate(subscriptionExpiresAt)}
+                </p>
+              )}
             </div>
-            <button
-              onClick={() => setShowSubscription(true)}
-              className="bg-white text-primary px-4 py-2 rounded-lg font-semibold text-sm"
-            >
-              Upgrade
-            </button>
+            {isSubscriptionActive() ? (
+              <button
+                onClick={() => setShowCancelModal(true)}
+                className="bg-white/20 border border-white px-4 py-2 rounded-lg font-semibold text-sm"
+              >
+                Cancel
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowSubscription(true)}
+                className="bg-white text-primary px-4 py-2 rounded-lg font-semibold text-sm"
+              >
+                Upgrade
+              </button>
+            )}
           </div>
         </div>
 
@@ -221,6 +341,37 @@ export const Wallet = () => {
 
       <AddMoneyModal isOpen={showAddMoney} onClose={() => setShowAddMoney(false)} />
       <SubscriptionModal isOpen={showSubscription} onClose={() => setShowSubscription(false)} />
+      
+      {/* Cancel Subscription Modal */}
+      {showCancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-[380px] bg-white dark:bg-gray-800 rounded-2xl p-6 mx-4">
+            <h2 className="text-xl font-bold mb-4 dark:text-white">Cancel Subscription</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">
+              Are you sure you want to cancel your Smart Commuter Pass? You will lose access to:
+            </p>
+            <ul className="list-disc list-inside text-sm text-gray-600 dark:text-gray-300 mb-6 space-y-2">
+              <li>Smart comparison system</li>
+              <li>Travel history</li>
+              <li>Move-to-earn discounts</li>
+            </ul>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowCancelModal(false)}
+                className="flex-1 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-3 rounded-lg font-semibold"
+              >
+                Keep Plan
+              </button>
+              <button
+                onClick={handleCancelSubscription}
+                className="flex-1 bg-red-500 text-white py-3 rounded-lg font-semibold"
+              >
+                Cancel Plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
